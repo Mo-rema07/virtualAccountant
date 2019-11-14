@@ -26,42 +26,34 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   }
 
   function recordTransaction(agent){
-    // console.log(agent.parameters)
-    // const date = agent.parameters.date
+    const date = agent.parameters.date
+    let transRef = db.collection('users').doc('transaction2');
+    agent.add(`created reference`)
     // const amount = agent.parameters.unit_currency
     // const action = agent.parameters.Action
     // const account = agent.parameters.Account
 
-    // const record = {
-    //   'date' : date,
+    const record = {
+      date : date
+    }
     //   'amount': amount,
     //   'action': action,
     //   'account': account
     // }
-    const record = {
-      date : 'Today',
-      amount: '5 USD',
-      action: 'sold',
-      account: 'books'
-    }
-
-    let transRef = db.collection('transactions').doc('transaction1');
-
     let setRecord = transRef.set(record)
+    agent.add(`set the record straight`)
+    agent.add(`Recording the transaction made on ${date}`)
+    // Get parameter from Dialogflow with the string to add to the database
+   
 
-    console.log(record)
-    // db.collection('transactions').add(record).then(r => console.log(r))
-    let docRef = db.collection('transactions').doc('1stRecord')
-    // let setRecord = docRef.set(record)
-    agent.add(`Recording new transaction`)
-    return db.runTransaction(
-      transaction => {
-        transaction.set(docRef,record)
-      })
-      .then(() => {
-        return "write success!"
-      })
+    // Get the database collection 'dialogflow' and document 'agent' and store
+    // the document  {entry: "<value of database entry>"} in the 'agent' document
   }
+
+  // function makeRecord(agent){
+  //   agent.add(`entered makeRecord`)
+  //
+  // }
 
   // Run the proper function handler based on the matched Dialogflow intent name
   let intentMap = new Map();
@@ -69,6 +61,5 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   intentMap.set('Default Fallback Intent', fallback);
   intentMap.set('Record transaction', recordTransaction);
   agent.handleRequest(intentMap);
-  // recordTransaction(agent);
 
 });
