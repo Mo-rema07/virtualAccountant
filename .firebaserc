@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "virtualaccountant-nomwae"
+    "default": "virtualaccountant-nomwae",
+    "staging": "virtualaccountant"
   }
 }

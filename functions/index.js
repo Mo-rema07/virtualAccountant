@@ -1,65 +1,99 @@
-// See https://github.com/dialogflow/dialogflow-fulfillment-nodejs
-// for Dialogflow fulfillment library docs, samples, and to report issues
+/**
+ * Copyright 2017 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 'use strict';
 
 const functions = require('firebase-functions');
-const {WebhookClient} = require('dialogflow-fulfillment');
-const {Card, Suggestion} = require('dialogflow-fulfillment');
 const admin = require('firebase-admin');
-admin.initializeApp();
-let db = admin.firestore();
+const {WebhookClient} = require('dialogflow-fulfillment');
 
-process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
+process.env.DEBUG = 'dialogflow:*'; // enables lib debugging statements
+admin.initializeApp(functions.config().firebase);
+const db = admin.firestore();
 
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
   const agent = new WebhookClient({ request, response });
-  console.log('Dialogflow Request headers: ' + JSON.stringify(request.headers));
-  console.log('Dialogflow Request body: ' + JSON.stringify(request.body));
-
-  function welcome (agent) {
-    agent.add(`Welcome to your own personal virtual assistant! How can I help you?`);
-  }
-
-  function fallback(agent) {
-    agent.add(`I didn't understand`);
-    agent.add(`I'm sorry, can you try again?`);
-  }
-
-  function recordTransaction(agent){
-    const date = agent.parameters.date
-    let transRef = db.collection('users').doc('transaction2');
-    agent.add(`created reference`)
-    // const amount = agent.parameters.unit_currency
-    // const action = agent.parameters.Action
-    // const account = agent.parameters.Account
-
-    const record = {
-      date : date
-    }
-    //   'amount': amount,
-    //   'action': action,
-    //   'account': account
-    // }
-    let setRecord = transRef.set(record)
-    agent.add(`set the record straight`)
-    agent.add(`Recording the transaction made on ${date}`)
-    // Get parameter from Dialogflow with the string to add to the database
-   
+  function recordSaleOrPurchase(agent){
+    // Get parameters from Dialogflow with the string to add to the database
+    const date = agent.parameters.date;
+    const action = agent.parameters.action;
+    const item = agent.parameters.item;
+    const amount = agent.parameters.amount;
 
     // Get the database collection 'dialogflow' and document 'agent' and store
     // the document  {entry: "<value of database entry>"} in the 'agent' document
+    const dialogflowAgentRef = db.collection('stock').doc('agent');
+    return db.runTransaction(t => {
+      t.set(dialogflowAgentRef, {
+        date: date,
+        action: action,
+        item: item,
+        amount: amount
+      });
+      return Promise.resolve('Write complete');
+    }).then(doc => {
+      // agent.add(` You ${action} ${item} for ${amount}.`);
+      agent.add(`On ${date} you ${action} ${item} for ${amount}.`);
+    }).catch(err => {
+      console.log(`Error writing to Firestore: ${err}`);
+      agent.add(`Failed to write to the Firestore database.`);
+    });
+  }
+  function writeToDb (agent) {
+    // Get parameter from Dialogflow with the string to add to the database
+    const databaseEntry = agent.parameters.databaseEntry;
+
+    // Get the database collection 'dialogflow' and document 'agent' and store
+    // the document  {entry: "<value of database entry>"} in the 'agent' document
+    const dialogflowAgentRef = db.collection('dialogflow').doc('agent');
+    return db.runTransaction(t => {
+      t.set(dialogflowAgentRef, {entry: databaseEntry});
+      return Promise.resolve('Write complete');
+    }).then(doc => {
+      agent.add(`Wrote "${databaseEntry}" to the Firestore database.`);
+    }).catch(err => {
+      console.log(`Error writing to Firestore: ${err}`);
+      agent.add(`Failed to write "${databaseEntry}" to the Firestore database.`);
+    });
   }
 
-  // function makeRecord(agent){
-  //   agent.add(`entered makeRecord`)
-  //
-  // }
+  function readFromDb (agent) {
+    // Get the database collection 'dialogflow' and document 'agent'
+    const dialogflowAgentDoc = db.collection('dialogflow').doc('agent');
 
-  // Run the proper function handler based on the matched Dialogflow intent name
+    // Get the value of 'entry' in the document and send it to the user
+    return dialogflowAgentDoc.get()
+      .then(doc => {
+        if (!doc.exists) {
+          agent.add('No data found in the database!');
+        } else {
+          agent.add(doc.data().entry);
+        }
+        return Promise.resolve('Read complete');
+      }).catch(() => {
+        agent.add('Error reading entry from the Firestore database.');
+        agent.add('Please add a entry to the database first by saying, "Write <your phrase> to the database"');
+      });
+  }
+
+  // Map from Dialogflow intent names to functions to be run when the intent is matched
   let intentMap = new Map();
-  intentMap.set('Default Welcome Intent', welcome);
-  intentMap.set('Default Fallback Intent', fallback);
-  intentMap.set('Record transaction', recordTransaction);
-  agent.handleRequest(intentMap);
+  intentMap.set('ReadFromFirestore', readFromDb);
+  intentMap.set('WriteToFirestore', writeToDb);
+  intentMap.set('RecordSaleOrPurchase', recordSaleOrPurchase);
 
+  agent.handleRequest(intentMap);
 });
