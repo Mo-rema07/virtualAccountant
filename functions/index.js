@@ -18,7 +18,7 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const {WebhookClient} = require('dialogflow-fulfillment');
+const { WebhookClient } = require('dialogflow-fulfillment');
 
 process.env.DEBUG = 'dialogflow:*'; // enables lib debugging statements
 admin.initializeApp(functions.config().firebase);
@@ -26,7 +26,7 @@ const db = admin.firestore();
 
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
   const agent = new WebhookClient({ request, response });
-  function recordSaleOrPurchase(agent){
+  function recordSaleOrPurchase (agent) {
     // Get parameters from Dialogflow with the string to add to the database
     const date = agent.parameters.date;
     const action = agent.parameters.action;
@@ -46,10 +46,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
       return Promise.resolve('Write complete');
     }).then(doc => {
       // agent.add(` You ${action} ${item} for ${amount}.`);
-      agent.add(`On ${date} you ${action} ${item} for ${amount}.`);
+      agent.add(`On "${date}" you "${action}" "${item}" for "${amount}".`);
+      return doc;
     }).catch(err => {
       console.log(`Error writing to Firestore: ${err}`);
-      agent.add(`Failed to write to the Firestore database.`);
+      agent.add('Failed to write to the Firestore database.');
     });
   }
   function writeToDb (agent) {
@@ -60,10 +61,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     // the document  {entry: "<value of database entry>"} in the 'agent' document
     const dialogflowAgentRef = db.collection('dialogflow').doc('agent');
     return db.runTransaction(t => {
-      t.set(dialogflowAgentRef, {entry: databaseEntry});
+      t.set(dialogflowAgentRef, { entry: databaseEntry });
       return Promise.resolve('Write complete');
     }).then(doc => {
       agent.add(`Wrote "${databaseEntry}" to the Firestore database.`);
+      return doc;
     }).catch(err => {
       console.log(`Error writing to Firestore: ${err}`);
       agent.add(`Failed to write "${databaseEntry}" to the Firestore database.`);
@@ -90,7 +92,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   }
 
   // Map from Dialogflow intent names to functions to be run when the intent is matched
-  let intentMap = new Map();
+  const intentMap = new Map();
   intentMap.set('ReadFromFirestore', readFromDb);
   intentMap.set('WriteToFirestore', writeToDb);
   intentMap.set('RecordSaleOrPurchase', recordSaleOrPurchase);
