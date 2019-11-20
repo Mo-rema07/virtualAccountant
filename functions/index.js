@@ -16,6 +16,7 @@
 
 'use strict';
 
+// const accounting = require('./accounting.js');
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { WebhookClient } = require('dialogflow-fulfillment');
@@ -24,54 +25,46 @@ process.env.DEBUG = 'dialogflow:*'; // enables lib debugging statements
 admin.initializeApp(functions.config().firebase);
 const db = admin.firestore();
 
+let lastTransactionID = 0;
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
   const agent = new WebhookClient({ request, response });
   function recordSaleOrPurchase (agent) {
     // Get parameters from Dialogflow with the string to add to the database
-    const date = agent.parameters.date;
-    const action = agent.parameters.action;
-    const item = agent.parameters.item;
-    const amount = agent.parameters.amount;
+    const record = {
+      date: agent.parameters.date,
+      action: agent.parameters.action,
+      item: agent.parameters.item,
+      amount: agent.parameters.amount
+    };
 
-    // Get the database collection 'dialogflow' and document 'agent' and store
-    // the document  {entry: "<value of database entry>"} in the 'agent' document
-    const dialogflowAgentRef = db.collection('stock').doc('agent');
-    return db.runTransaction(t => {
-      t.set(dialogflowAgentRef, {
-        date: date,
-        action: action,
-        item: item,
-        amount: amount
-      });
-      return Promise.resolve('Write complete');
-    }).then(doc => {
-      // agent.add(` You ${action} ${item} for ${amount}.`);
-      agent.add(`On "${date}" you "${action}" "${item}" for "${amount}".`);
-      return doc;
-    }).catch(err => {
-      console.log(`Error writing to Firestore: ${err}`);
-      agent.add('Failed to write to the Firestore database.');
-    });
+    const transaction = classifyAccounts(record);
+
+    // Save the entries into their appropriate accounts.
+    const account = transaction.accounts[0];
+    saveToDatabase(agent, account, transaction.Id, transaction.entries[0])
+      .then(agent.add(`${account} transaction has been saved to Firestore.`))
+      .catch(error => console.log(error));
+    const account1 = transaction.accounts[1];
+    saveToDatabase(agent, account1, transaction.Id, transaction.entries[1])
+      .then(agent.add(`${account1} transaction has been saved to Firestore`))
+      .catch(error => console.log(error));
+
+    let inventory = getInventory()
+      .then(r => {
+        return r;
+      })
+      .catch(error => console.log(error));
+
+    const item = jsonifyItem(agent.parameters.item);
+
+    inventory = inventory ? updateStock(agent.parameters.action, inventory, item) : item;
+
+    saveToDatabase(agent, 'inventory', 'all', inventory)
+      .then(() => agent.add('updated inventory'))
+      .catch(error => { console.log(error); });
+
+    agent.add(`${record.item}, ${record.date}, ${record.action}, ${record.amount} `);
   }
-  function writeToDb (agent) {
-    // Get parameter from Dialogflow with the string to add to the database
-    const databaseEntry = agent.parameters.databaseEntry;
-
-    // Get the database collection 'dialogflow' and document 'agent' and store
-    // the document  {entry: "<value of database entry>"} in the 'agent' document
-    const dialogflowAgentRef = db.collection('dialogflow').doc('agent');
-    return db.runTransaction(t => {
-      t.set(dialogflowAgentRef, { entry: databaseEntry });
-      return Promise.resolve('Write complete');
-    }).then(doc => {
-      agent.add(`Wrote "${databaseEntry}" to the Firestore database.`);
-      return doc;
-    }).catch(err => {
-      console.log(`Error writing to Firestore: ${err}`);
-      agent.add(`Failed to write "${databaseEntry}" to the Firestore database.`);
-    });
-  }
-
   function readFromDb (agent) {
     // Get the database collection 'dialogflow' and document 'agent'
     const dialogflowAgentDoc = db.collection('dialogflow').doc('agent');
@@ -94,8 +87,87 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   // Map from Dialogflow intent names to functions to be run when the intent is matched
   const intentMap = new Map();
   intentMap.set('ReadFromFirestore', readFromDb);
-  intentMap.set('WriteToFirestore', writeToDb);
   intentMap.set('RecordSaleOrPurchase', recordSaleOrPurchase);
 
   agent.handleRequest(intentMap);
 });
+
+function classifyAccounts (record) {
+  let transaction = { Id: (lastTransactionID + 1).toString() };
+  if (record) {
+    transaction = Object.assign(transaction, { accounts: [
+      checkSales(record) ? 'Sales' : 'Purchases',
+      checkCash(record) ? 'Cash' : record.company
+    ] });
+    const entry = {
+      transactionId: transaction.Id,
+      date: record.date,
+      account: transaction.accounts[1],
+      dr_cr: checkSales(record) ? 'credit' : 'debit',
+      amount: record.amount
+    };
+    const entry2 = {
+      transactionId: transaction.Id,
+      date: record.date,
+      account: transaction.accounts[0],
+      dr_cr: checkSales(record) ? 'debit' : 'credit',
+      amount: record.amount
+    };
+    transaction = Object.assign(transaction, { entries: [entry, entry2] });
+  }
+  lastTransactionID++;
+  return transaction;
+}
+
+function checkCash (record) {
+  return !record.company;
+}
+
+function checkSales (record) {
+  return record.action === 'sold';
+}
+
+function saveToDatabase (agent, collection, document, data) {
+  const dialogflowAgentRef = db.collection(collection).doc(document);
+  return db.runTransaction(t => {
+    t.set(dialogflowAgentRef, data);
+    return Promise.resolve('Write complete');
+  }).then(doc => {
+    agent.add(`${collection} record has been completed`);
+    return doc;
+  }).catch(err => {
+    console.log(`Error writing to Firestore: ${err}`);
+    agent.add('Saving Failed.');
+  });
+}
+
+function getInventory () {
+  const inventoryDoc = db.collection('inventory').doc('all');
+  return inventoryDoc.get()
+    .then(doc => {
+      return Promise.resolve(doc.data());
+    }).catch((e) => {
+      console.log(e);
+    });
+}
+
+function jsonifyItem (item) {
+  const array = item.split();
+  return {
+    number: array[0],
+    item: array[1]
+  };
+}
+
+function updateStock (action, inventory, item) {
+  if (action === 'sold') {
+    inventory = item.item === 'oranges'
+      ? Object.assign(inventory, { oranges: -item.number })
+      : Object.assign(inventory, { apples: -item.number });
+  } else {
+    inventory = item.item === 'oranges'
+      ? Object.assign(inventory, { oranges: item.number })
+      : Object.assign(inventory, { apples: item.number });
+  }
+  return inventory;
+}
