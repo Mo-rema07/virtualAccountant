@@ -49,63 +49,40 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     const account1 = transaction.accounts[1];
     saveToDatabase(agent, account1, transaction.Id, transaction.entries[1])
       .then(agent.add(`${account1} entry has been saved.`))
+      .then(() => console.log(transaction.entries[1]))
       .catch(error => console.log(error));
 
     const item = getItem(record);
     saveToDatabase(agent, 'Inventory', transaction.Id, item)
       .then(agent.add(`${record.item} recorded in the stock`))
       .catch(error => console.log(error));
-    agent.add(`${record.item}, ${record.date}, ${record.action}, ${record.amount} `);
+    agent.add(`${record.item}, ${record.date}, ${record.action}, ${record.amount.amount} ${record.amount.currency}`);
   }
 
-  function readFromDb (agent) {
-    // Get the database collection 'dialogflow' and document 'agent'
-    const dialogflowAgentDoc = db.collection('dialogflow').doc('agent');
-
-    // Get the value of 'entry' in the document and send it to the user
-    return dialogflowAgentDoc.get()
-      .then(doc => {
-        if (!doc.exists) {
-          agent.add('No data found in the database!');
-        } else {
-          agent.add(doc.data().entry);
-        }
-        return Promise.resolve('Read complete');
-      }).catch(() => {
-        agent.add('Error reading entry from the Firestore database.');
-        agent.add('Please add a entry to the database first by saying, "Write <your phrase> to the database"');
-      });
-  }
-
-  function showCash (agent) {
-    const transactions = [];
+  async function showCash (agent) {
+    const results = [];
     const cashRef = db.collection('Cash');
-    const allTransactions = cashRef.get()
+    await cashRef.get()
+    // eslint-disable-next-line promise/always-return
       .then(snapshot => {
         snapshot.forEach(doc => {
-          transactions.push(doc.data());
+          results.push(doc.data());
         });
-        return null;
       })
       .catch(err => {
         console.log('Error getting documents', err);
       });
-    let cash = 0;
-    agent.add(cash);
-    for (let i = 0; i < transactions.length; i++) {
-      if (transactions[i].dr_cr === 'credit') {
-        cash += transactions[i].amount;
-      } else {
-        cash -= transactions[i].amount;
-      }
+    let sum = 0;
+    results.forEach(doc => {
+      sum = doc.dr_cr === 'debit' ? sum + doc.amount.amount : sum - doc.amount.amount;
     }
-    agent.add(cash);
-    return allTransactions;
+    );
+    agent.add(`${sum} Maloti`);
   }
 
   // Map from Dialogflow intent names to functions to be run when the intent is matched
   const intentMap = new Map();
-  intentMap.set('ReadFromFirestore', readFromDb);
+  // intentMap.set('ReadFromFirestore', readFromDb);
   intentMap.set('RecordSaleOrPurchase', recordSaleOrPurchase);
   intentMap.set('ShowCash', showCash);
   agent.handleRequest(intentMap);
