@@ -49,29 +49,16 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     const account1 = transaction.accounts[1];
     saveToDatabase(agent, account1, transaction.Id, transaction.entries[1])
       .then(agent.add(`${account1} entry has been saved.`))
-      .then(() => console.log(transaction.entries[1]))
       .catch(error => console.log(error));
 
     const item = getItem(record);
     saveToDatabase(agent, 'Inventory', transaction.Id, item)
       .then(agent.add(`${record.item} recorded in the stock`))
       .catch(error => console.log(error));
-    agent.add(`${record.item}, ${record.date}, ${record.action}, ${record.amount.amount} ${record.amount.currency}`);
   }
 
   async function showCash (agent) {
-    const results = [];
-    const cashRef = db.collection('Cash');
-    await cashRef.get()
-    // eslint-disable-next-line promise/always-return
-      .then(snapshot => {
-        snapshot.forEach(doc => {
-          results.push(doc.data());
-        });
-      })
-      .catch(err => {
-        console.log('Error getting documents', err);
-      });
+    const results = await getCollection('Cash');
     let sum = 0;
     results.forEach(doc => {
       sum = doc.dr_cr === 'debit' ? sum + doc.amount.amount : sum - doc.amount.amount;
@@ -80,11 +67,35 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     agent.add(`${sum} Maloti`);
   }
 
+  async function viewInventory (agent) {
+    const results = await getCollection('Inventory');
+    let apples = 0;
+    let oranges = 0;
+    results.forEach(result => {
+      if (result.item === 'apples') {
+        apples = result.direction === 'in' ? apples + result.number : apples - result.number;
+      } else {
+        oranges = result.direction === 'in' ? oranges + result.number : oranges - result.number;
+      }
+    });
+    const stock = new Map();
+    stock.set('apples', apples);
+    stock.set('oranges', oranges);
+
+    const fruit = agent.parameters.fruit;
+    if (fruit) {
+      agent.add(`There are ${stock.get(fruit)} ${fruit}`);
+    } else {
+      agent.add(`There are ${stock.get('apples')} apple(s) and ${stock.get('oranges')} orange(s)`);
+    }
+  }
+
   // Map from Dialogflow intent names to functions to be run when the intent is matched
   const intentMap = new Map();
   // intentMap.set('ReadFromFirestore', readFromDb);
   intentMap.set('RecordSaleOrPurchase', recordSaleOrPurchase);
   intentMap.set('ShowCash', showCash);
+  intentMap.set('ViewInventory', viewInventory);
   agent.handleRequest(intentMap);
 });
 
@@ -137,10 +148,26 @@ function saveToDatabase (agent, collection, document, data) {
   });
 }
 
+async function getCollection (collection) {
+  const results = [];
+  const collectionRef = db.collection(collection);
+  await collectionRef.get()
+  // eslint-disable-next-line promise/always-return
+    .then(snapshot => {
+      snapshot.forEach(doc => {
+        results.push(doc.data());
+      });
+    })
+    .catch(err => {
+      console.log('Error getting documents', err);
+    });
+  return results;
+}
+
 function getItem (record) {
   const array = record.item.split(' ');
   return {
-    number: array[0],
+    number: parseInt(array[0]),
     item: array[1],
     direction: checkSales(record) ? 'out' : 'in'
   };
