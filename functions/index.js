@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+// TODO: Differentiate rupee/dolars etc.
 'use strict';
 
 // const accounting = require('./accounting.js');
@@ -28,6 +28,7 @@ const db = admin.firestore();
 let lastTransactionID = 0;
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
   const agent = new WebhookClient({ request, response });
+
   function recordSaleOrPurchase (agent) {
     // Get parameters from Dialogflow with the string to add to the database
     const record = {
@@ -42,29 +43,21 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     // Save the entries into their appropriate accounts.
     const account = transaction.accounts[0];
     saveToDatabase(agent, account, transaction.Id, transaction.entries[0])
-      .then(agent.add(`${account} transaction has been saved to Firestore.`))
+      .then(agent.add(`${account} entry has been saved.`))
       .catch(error => console.log(error));
+
     const account1 = transaction.accounts[1];
     saveToDatabase(agent, account1, transaction.Id, transaction.entries[1])
-      .then(agent.add(`${account1} transaction has been saved to Firestore`))
+      .then(agent.add(`${account1} entry has been saved.`))
       .catch(error => console.log(error));
 
-    let inventory = getInventory()
-      .then(r => {
-        return r;
-      })
+    const item = getItem(record);
+    saveToDatabase(agent, 'Inventory', transaction.Id, item)
+      .then(agent.add(`${record.item} recorded in the stock`))
       .catch(error => console.log(error));
-
-    const item = jsonifyItem(agent.parameters.item);
-
-    inventory = inventory ? updateStock(agent.parameters.action, inventory, item) : item;
-
-    saveToDatabase(agent, 'inventory', 'all', inventory)
-      .then(() => agent.add('updated inventory'))
-      .catch(error => { console.log(error); });
-
     agent.add(`${record.item}, ${record.date}, ${record.action}, ${record.amount} `);
   }
+
   function readFromDb (agent) {
     // Get the database collection 'dialogflow' and document 'agent'
     const dialogflowAgentDoc = db.collection('dialogflow').doc('agent');
@@ -84,11 +77,37 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
       });
   }
 
+  function showCash (agent) {
+    const transactions = [];
+    const cashRef = db.collection('Cash');
+    const allTransactions = cashRef.get()
+      .then(snapshot => {
+        snapshot.forEach(doc => {
+          transactions.push(doc.data());
+        });
+        return null;
+      })
+      .catch(err => {
+        console.log('Error getting documents', err);
+      });
+    let cash = 0;
+    agent.add(cash);
+    for (let i = 0; i < transactions.length; i++) {
+      if (transactions[i].dr_cr === 'credit') {
+        cash += transactions[i].amount;
+      } else {
+        cash -= transactions[i].amount;
+      }
+    }
+    agent.add(cash);
+    return allTransactions;
+  }
+
   // Map from Dialogflow intent names to functions to be run when the intent is matched
   const intentMap = new Map();
   intentMap.set('ReadFromFirestore', readFromDb);
   intentMap.set('RecordSaleOrPurchase', recordSaleOrPurchase);
-
+  intentMap.set('ShowCash', showCash);
   agent.handleRequest(intentMap);
 });
 
@@ -141,33 +160,11 @@ function saveToDatabase (agent, collection, document, data) {
   });
 }
 
-function getInventory () {
-  const inventoryDoc = db.collection('inventory').doc('all');
-  return inventoryDoc.get()
-    .then(doc => {
-      return Promise.resolve(doc.data());
-    }).catch((e) => {
-      console.log(e);
-    });
-}
-
-function jsonifyItem (item) {
-  const array = item.split();
+function getItem (record) {
+  const array = record.item.split(' ');
   return {
     number: array[0],
-    item: array[1]
+    item: array[1],
+    direction: checkSales(record) ? 'out' : 'in'
   };
-}
-
-function updateStock (action, inventory, item) {
-  if (action === 'sold') {
-    inventory = item.item === 'oranges'
-      ? Object.assign(inventory, { oranges: -item.number })
-      : Object.assign(inventory, { apples: -item.number });
-  } else {
-    inventory = item.item === 'oranges'
-      ? Object.assign(inventory, { oranges: item.number })
-      : Object.assign(inventory, { apples: item.number });
-  }
-  return inventory;
 }
