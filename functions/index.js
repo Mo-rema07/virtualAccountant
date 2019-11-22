@@ -35,7 +35,8 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
       date: agent.parameters.date,
       action: agent.parameters.action,
       item: agent.parameters.item,
-      amount: agent.parameters.amount
+      amount: agent.parameters.amount,
+      company: agent.parameters.company
     };
 
     const transaction = classifyAccounts(record);
@@ -61,8 +62,8 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     const results = await getCollection('Cash');
     let sum = 0;
     results.forEach(doc => {
-      sum = doc.dr_cr === 'debit' ? sum + doc.amount.amount : sum - doc.amount.amount;
-    }
+        sum = doc.dr_cr === 'debit' ? sum + doc.amount.amount : sum - doc.amount.amount;
+      }
     );
     agent.add(`${sum} Maloti`);
   }
@@ -90,12 +91,35 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     }
   }
 
+  async function listTransactions(agent){
+    let allCollections = []
+    let entries = []
+    await db.listCollections().then(collections => {
+      for (let collection of collections) {
+        allCollections.push(collection.id)
+      }
+      return null;
+    })
+    allCollections.forEach( async collection => {
+      let newEntry = await getCollection(collection)
+      console.log(newEntry)
+      entries.concat(newEntry)
+    })
+      .then(()=>{
+        console.log(allCollections)
+        console.log(entries)
+        return null
+      })
+      .catch(e=>console.log(e))
+  }
+
   // Map from Dialogflow intent names to functions to be run when the intent is matched
   const intentMap = new Map();
   // intentMap.set('ReadFromFirestore', readFromDb);
   intentMap.set('RecordSaleOrPurchase', recordSaleOrPurchase);
   intentMap.set('ShowCash', showCash);
   intentMap.set('ViewInventory', viewInventory);
+  intentMap.set('ListTransactions', listTransactions);
   agent.handleRequest(intentMap);
 });
 
@@ -103,9 +127,9 @@ function classifyAccounts (record) {
   let transaction = { Id: (lastTransactionID + 1).toString() };
   if (record) {
     transaction = Object.assign(transaction, { accounts: [
-      checkSales(record) ? 'Sales' : 'Purchases',
-      checkCash(record) ? 'Cash' : record.company
-    ] });
+        checkSales(record) ? 'Sales' : 'Purchases',
+        checkCash(record) ? 'Cash' : record.company
+      ] });
     const entry = {
       transactionId: transaction.Id,
       date: record.date,
