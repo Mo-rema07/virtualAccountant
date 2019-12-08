@@ -1,0 +1,20 @@
+{
+  "queryResult": {
+    "queryText": "Today, I sold 1 apple for 400 USD on credit to Ariyike",
+    "parameters": {
+      "company": "Ariyike",
+      "date": "2019-11-17T12:00:00+04:00",
+      "action": "sold",
+      "item": "1 apple",
+      "amount": {
+        "currency": "USD",
+        "amount": 100
+      }
+    },
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "displayName": "RecordSaleOrPurchase"
+    },
+    "languageCode": "en"
+  }
+}

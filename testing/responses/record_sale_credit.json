@@ -1,0 +1,19 @@
+{
+  "fulfillmentMessages": [
+    {
+      "text": {
+        "text": [
+          "5, 2019-11-17T12:00:00+04:00, amount: 100 USD, debit: Ariyike, credit: Sales"
+        ]
+      }
+    },
+    {
+      "text": {
+        "text": [
+          "1 apple recorded in the stock"
+        ]
+      }
+    }
+  ],
+  "outputContexts": []
+}

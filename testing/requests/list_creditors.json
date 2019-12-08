@@ -1,0 +1,10 @@
+{
+  "queryResult": {
+    "queryText": "Who do I owe?",
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "displayName": "ListCreditors"
+    },
+    "languageCode": "en"
+  }
+}

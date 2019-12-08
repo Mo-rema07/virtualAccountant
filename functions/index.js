@@ -1,19 +1,6 @@
-/**
- * Copyright 2017 Google Inc. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// TODO: Differentiate rupee/dolars etc.
+// TODO: Handle currency that is not Maloti
+// TODO: Handle stock that we don't sell
+// TODO: Handle pricing of stock
 'use strict';
 
 // const accounting = require('./accounting.js');
@@ -26,10 +13,12 @@ admin.initializeApp(functions.config().firebase);
 const db = admin.firestore();
 
 let lastTransactionID = 0;
+const stock = ['apples','oranges'];
+
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
   const agent = new WebhookClient({ request, response });
 
-  function recordSaleOrPurchase (agent) {
+  const recordSaleOrPurchase = (agent) => {
     // Get parameters from Dialogflow with the string to add to the database
     const record = {
       date: agent.parameters.date,
@@ -41,34 +30,36 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
 
     const transaction = classifyAccounts(record);
 
-    // Save the entries into their appropriate accounts.
-    const account = transaction.accounts[0];
-    saveToDatabase(agent, account, transaction.Id, transaction.entries[0])
-      .then(agent.add(`${account} entry has been saved.`))
-      .catch(error => console.log(error));
+    const document = 'trans' + transaction.id;
 
-    const account1 = transaction.accounts[1];
-    saveToDatabase(agent, account1, transaction.Id, transaction.entries[1])
-      .then(agent.add(`${account1} entry has been saved.`))
+    saveToDatabase(agent, 'Transactions', document, transaction)
+      .then(agent.add(summarizeTransaction(transaction)))
       .catch(error => console.log(error));
 
     const item = getItem(record);
-    saveToDatabase(agent, 'Inventory', transaction.Id, item)
+    saveToDatabase(agent, 'Inventory', document, item)
       .then(agent.add(`${record.item} recorded in the stock`))
       .catch(error => console.log(error));
-  }
+    lastTransactionID++;
+  };
 
-  async function showCash (agent) {
-    const results = await getCollection('Cash');
-    let sum = 0;
-    results.forEach(doc => {
-        sum = doc.dr_cr === 'debit' ? sum + doc.amount.amount : sum - doc.amount.amount;
-      }
-    );
-    agent.add(`${sum} Maloti`);
-  }
+  const showCash = async (agent) => {
+    const transactions = await getCollection('Transactions');
+    const debitCash = transactions.filter(t => { return t.dr_account === 'Cash'; });
+    const creditCash = transactions.filter(t => { return t.cr_account === 'Cash'; });
 
-  async function viewInventory (agent) {
+    const drTotal = debitCash.length > 0
+      ? debitCash.map(t => { return t.amount.amount; })
+        .reduce((a, b) => { return a + b; }) : 0;
+
+    const crTotal = creditCash.length > 0
+      ? creditCash.map(t => { return t.amount.amount; })
+        .reduce((a, b) => { return a + b; }) : 0;
+
+    agent.add(`${drTotal - crTotal} Maloti`);
+  };
+
+  const viewInventory = async (agent) => {
     const results = await getCollection('Inventory');
     let apples = 0;
     let oranges = 0;
@@ -89,29 +80,65 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     } else {
       agent.add(`There are ${stock.get('apples')} apple(s) and ${stock.get('oranges')} orange(s)`);
     }
-  }
+  };
 
-  async function listTransactions(agent){
-    let allCollections = []
-    let entries = []
-    await db.listCollections().then(collections => {
-      for (let collection of collections) {
-        allCollections.push(collection.id)
-      }
-      return null;
-    })
-    allCollections.forEach( async collection => {
-      let newEntry = await getCollection(collection)
-      console.log(newEntry)
-      entries.concat(newEntry)
-    })
-      .then(()=>{
-        console.log(allCollections)
-        console.log(entries)
-        return null
-      })
-      .catch(e=>console.log(e))
-  }
+  const listTransactions = async (agent) => {
+    const transactions = await getCollection('Transactions');
+    let list = '';
+
+    transactions.forEach(t => {
+      const summary = summarizeTransaction(t).concat('\n\n');
+      list = list.concat(summary);
+    });
+    agent.add(list);
+  };
+
+  const listDebtors = async (agent) => {
+    const transactions = await getCollection('Transactions');
+    const debt = new Map();
+    let list = '';
+    let debtors = transactions.filter(t => { return !['Sales', 'Purchases', 'Cash'].includes(t.dr_account); })
+      .map(t => { return t.dr_account; });
+    debtors = [...new Set(debtors)];
+
+    transactions.forEach(t => {
+      debtors.forEach((d) => {
+          if (t.dr_account === d) {
+            const newDebt = debt.get(d) ? debt.get(d) + t.amount.amount : t.amount.amount;
+            debt.set(d, newDebt);
+          }
+        }
+      );
+    });
+
+    debt.forEach((value, key, map) => {
+      list = list.concat(`${key}: ${value} Maloti`);
+    });
+    agent.add(list);
+  };
+
+  const listCreditors = async (agent) => {
+    const transactions = await getCollection('Transactions');
+    const credit = new Map();
+    let list = '';
+    let creditors = transactions.filter(t => { return !['Sales', 'Purchases', 'Cash'].includes(t.cr_account); })
+      .map(t => { return t.cr_account; });
+    creditors = [...new Set(creditors)];
+    transactions.forEach(t => {
+      creditors.forEach((d) => {
+          if (t.cr_account === d) {
+            const newDebt = credit.get(d) ? credit.get(d) + t.amount.amount : t.amount.amount;
+            credit.set(d, newDebt);
+          }
+        }
+      );
+    });
+
+    credit.forEach((value, key, map) => {
+      list = list.concat(`${key}: ${value} Maloti \n`);
+    });
+    agent.add(list);
+  };
 
   // Map from Dialogflow intent names to functions to be run when the intent is matched
   const intentMap = new Map();
@@ -120,45 +147,30 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   intentMap.set('ShowCash', showCash);
   intentMap.set('ViewInventory', viewInventory);
   intentMap.set('ListTransactions', listTransactions);
+  intentMap.set('ListDebtors', listDebtors);
+  intentMap.set('ListCreditors', listCreditors);
   agent.handleRequest(intentMap);
 });
 
-function classifyAccounts (record) {
-  let transaction = { Id: (lastTransactionID + 1).toString() };
+const classifyAccounts = (record) => {
+  let transaction = {
+    id: (lastTransactionID + 1).toString()
+  };
   if (record) {
-    transaction = Object.assign(transaction, { accounts: [
-        checkSales(record) ? 'Sales' : 'Purchases',
-        checkCash(record) ? 'Cash' : record.company
-      ] });
-    const entry = {
-      transactionId: transaction.Id,
+    const isSales = record.action === 'sold';
+    const accounts = [isSales ? 'Sales' : 'Purchases', !record.company ? 'Cash' : record.company
+    ];
+    transaction = Object.assign(transaction, {
       date: record.date,
-      account: transaction.accounts[1],
-      dr_cr: checkSales(record) ? 'credit' : 'debit',
+      dr_account: isSales ? accounts[1] : accounts[0],
+      cr_account: !isSales ? accounts[1] : accounts[0],
       amount: record.amount
-    };
-    const entry2 = {
-      transactionId: transaction.Id,
-      date: record.date,
-      account: transaction.accounts[0],
-      dr_cr: checkSales(record) ? 'debit' : 'credit',
-      amount: record.amount
-    };
-    transaction = Object.assign(transaction, { entries: [entry, entry2] });
+    });
   }
-  lastTransactionID++;
   return transaction;
-}
+};
 
-function checkCash (record) {
-  return !record.company;
-}
-
-function checkSales (record) {
-  return record.action === 'sold';
-}
-
-function saveToDatabase (agent, collection, document, data) {
+const saveToDatabase = (agent, collection, document, data) => {
   const dialogflowAgentRef = db.collection(collection).doc(document);
   return db.runTransaction(t => {
     t.set(dialogflowAgentRef, data);
@@ -170,13 +182,13 @@ function saveToDatabase (agent, collection, document, data) {
     console.log(`Error writing to Firestore: ${err}`);
     agent.add('Saving Failed.');
   });
-}
+};
 
-async function getCollection (collection) {
+const getCollection = async (collection) => {
   const results = [];
   const collectionRef = db.collection(collection);
   await collectionRef.get()
-  // eslint-disable-next-line promise/always-return
+    // eslint-disable-next-line promise/always-return
     .then(snapshot => {
       snapshot.forEach(doc => {
         results.push(doc.data());
@@ -186,13 +198,31 @@ async function getCollection (collection) {
       console.log('Error getting documents', err);
     });
   return results;
-}
+};
 
-function getItem (record) {
+const getItem = (record) => {
   const array = record.item.split(' ');
   return {
     number: parseInt(array[0]),
-    item: array[1],
-    direction: checkSales(record) ? 'out' : 'in'
+    item: validateItem(array[1]),
+    direction: record.action === 'sold' ? 'out' : 'in'
   };
+};
+
+const summarizeTransaction = (transaction) => {
+  return `${transaction.id}, ${transaction.date}, amount: ${transaction.amount.amount} ${transaction.amount.currency}, debit: ${transaction.dr_account}, credit: ${transaction.cr_account}`;
+};
+
+const validateItem = (item) => {
+  if (stock.includes(item)){
+    return item
+  }
+  else{
+    if (item === 'apple' || item ==='apples'){
+      return 'apples'
+    }
+    else {
+      return 'oranges'
+    }
+  }
 }

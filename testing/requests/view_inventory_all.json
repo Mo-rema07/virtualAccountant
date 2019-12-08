@@ -1,0 +1,10 @@
+{
+  "queryResult": {
+    "queryText": "Check stock",
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "displayName": "ViewInventory"
+    },
+    "languageCode": "en"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "queryResult": {
+    "queryText": "Who owes me?",
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "displayName": "ListDebtors"
+    },
+    "languageCode": "en"
+  }
+}

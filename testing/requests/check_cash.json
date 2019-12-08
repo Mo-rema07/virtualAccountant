@@ -1,0 +1,10 @@
+{
+  "queryResult": {
+    "queryText": "Cash",
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "displayName": "ShowCash"
+    },
+    "languageCode": "en"
+  }
+}

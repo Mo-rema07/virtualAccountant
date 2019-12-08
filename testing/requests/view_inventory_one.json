@@ -1,0 +1,13 @@
+{
+  "queryResult": {
+    "queryText": "How many oranges are left?",
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "displayName": "ViewInventory"
+    },
+    "parameters": {
+      "fruit": "oranges"
+    },
+    "languageCode": "en"
+  }
+}

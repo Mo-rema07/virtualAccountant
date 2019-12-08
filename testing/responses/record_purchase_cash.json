@@ -1,0 +1,19 @@
+{
+  "fulfillmentMessages": [
+    {
+      "text": {
+        "text": [
+          "1, 2019-11-16T12:00:00+04:00, amount: 600 USD, debit: Purchases, credit: Cash"
+        ]
+      }
+    },
+    {
+      "text": {
+        "text": [
+          "3 apples recorded in the stock"
+        ]
+      }
+    }
+  ],
+  "outputContexts": []
+}

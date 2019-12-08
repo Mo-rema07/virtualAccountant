@@ -1,0 +1,19 @@
+{
+  "queryResult": {
+    "queryText": "Today, I sold 2 oranges for 400 USD",
+    "parameters": {
+      "date": "2019-11-17T12:00:00+04:00",
+      "action": "sold",
+      "item": "2 oranges",
+      "amount": {
+        "currency": "USD",
+        "amount": 400
+      }
+    },
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "displayName": "RecordSaleOrPurchase"
+    },
+    "languageCode": "en"
+  }
+}

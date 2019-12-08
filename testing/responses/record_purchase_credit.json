@@ -1,0 +1,19 @@
+{
+  "fulfillmentMessages": [
+    {
+      "text": {
+        "text": [
+          "3, 2019-11-16T12:00:00+04:00, amount: 500 USD, debit: Purchases, credit: Morema Mafantiri"
+        ]
+      }
+    },
+    {
+      "text": {
+        "text": [
+          "5 oranges recorded in the stock"
+        ]
+      }
+    }
+  ],
+  "outputContexts": []
+}
