@@ -13,7 +13,7 @@ admin.initializeApp(functions.config().firebase);
 const db = admin.firestore();
 
 let lastTransactionID = 0;
-const stock = ['apples','oranges'];
+const stock = ['apples', 'oranges'];
 
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
   const agent = new WebhookClient({ request, response });
@@ -103,11 +103,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
 
     transactions.forEach(t => {
       debtors.forEach((d) => {
-          if (t.dr_account === d) {
-            const newDebt = debt.get(d) ? debt.get(d) + t.amount.amount : t.amount.amount;
-            debt.set(d, newDebt);
-          }
+        if (t.dr_account === d) {
+          const newDebt = debt.get(d) ? debt.get(d) + t.amount.amount : t.amount.amount;
+          debt.set(d, newDebt);
         }
+      }
       );
     });
 
@@ -126,11 +126,11 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     creditors = [...new Set(creditors)];
     transactions.forEach(t => {
       creditors.forEach((d) => {
-          if (t.cr_account === d) {
-            const newDebt = credit.get(d) ? credit.get(d) + t.amount.amount : t.amount.amount;
-            credit.set(d, newDebt);
-          }
+        if (t.cr_account === d) {
+          const newDebt = credit.get(d) ? credit.get(d) + t.amount.amount : t.amount.amount;
+          credit.set(d, newDebt);
         }
+      }
       );
     });
 
@@ -157,7 +157,7 @@ const classifyAccounts = (record) => {
     id: (lastTransactionID + 1).toString()
   };
   if (record) {
-    const isSales = record.action === 'sold';
+    const isSales = record.action === 'sale';
     const accounts = [isSales ? 'Sales' : 'Purchases', !record.company ? 'Cash' : record.company
     ];
     transaction = Object.assign(transaction, {
@@ -214,15 +214,13 @@ const summarizeTransaction = (transaction) => {
 };
 
 const validateItem = (item) => {
-  if (stock.includes(item)){
-    return item
-  }
-  else{
-    if (item === 'apple' || item ==='apples'){
-      return 'apples'
-    }
-    else {
-      return 'oranges'
+  if (stock.includes(item)) {
+    return item;
+  } else {
+    if (item === 'apple' || item === 'apples') {
+      return 'apples';
+    } else {
+      return 'oranges';
     }
   }
-}
+};

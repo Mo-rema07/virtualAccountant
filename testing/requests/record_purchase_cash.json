@@ -3,7 +3,7 @@
     "queryText": "Yesterday, I bought 3 apples for 600 USD",
     "parameters": {
       "date": "2019-11-16T12:00:00+04:00",
-      "action": "bought",
+      "action": "purchase",
       "item": "3 apples",
       "amount": {
         "currency": "USD",
