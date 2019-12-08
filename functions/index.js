@@ -158,21 +158,22 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
       ? debitSales.map(t => { return t.amount.amount; })
         .reduce((a, b) => { return a + b; }) : 0;
     const crSalesTotal = creditSales.length > 0
-      ? creditSales.map(t => {return t.amount.amount;})
+      ? creditSales.map(t => { return t.amount.amount; })
         .reduce((a, b) => { return a + b; }) : 0;
 
     const drPurchasesTotal = debitPurchases.length > 0
-      ? debitPurchases.map(t => {return t.amount.amount;})
+      ? debitPurchases.map(t => { return t.amount.amount; })
         .reduce((a, b) => { return a + b; }) : 0;
     const crPurchasesTotal = creditPurchases.length > 0
       ? creditPurchases.map(t => { return t.amount.amount; })
         .reduce((a, b) => { return a + b; }) : 0;
 
-    let salesBal = crSalesTotal - drSalesTotal;
-    let purchasesBal = drPurchasesTotal - crPurchasesTotal;
+    const salesBal = crSalesTotal - drSalesTotal;
+    const purchasesBal = drPurchasesTotal - crPurchasesTotal;
 
-    agent.add(`${salesBal - purchasesBal} Maloti`);
-  }
+    const profit = salesBal - purchasesBal;
+    profit >= 0 ? agent.add(`Profit: ${profit} Maloti`) : agent.add(`Loss: ${-profit} Maloti`);
+  };
 
   // Map from Dialogflow intent names to functions to be run when the intent is matched
   const intentMap = new Map();
