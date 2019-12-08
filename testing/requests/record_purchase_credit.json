@@ -1,10 +1,10 @@
 {
   "queryResult": {
-    "queryText": "Yesterday, I bought 5 apples for 800 USD on credit from Morema Mafantiri",
+    "queryText": "Yesterday, I bought 5 apples and 5 oranges for 800 USD on credit from Morema Mafantiri",
     "parameters": {
       "date": "2019-11-16T12:00:00+04:00",
       "action": "purchase",
-      "item": "5 oranges",
+      "items": ["5 oranges"],
       "amount": {
         "currency": "USD",
         "amount": 500

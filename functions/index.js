@@ -23,7 +23,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     const record = {
       date: agent.parameters.date,
       action: agent.parameters.action,
-      item: agent.parameters.item,
+      items: agent.parameters.items,
       amount: agent.parameters.amount,
       company: agent.parameters.company
     };
@@ -36,11 +36,16 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
       .then(agent.add(summarizeTransaction(transaction)))
       .catch(error => console.log(error));
 
-    const item = getItem(record);
-    saveToDatabase(agent, 'Inventory', document, item)
-      .then(agent.add(`${record.item} recorded in the stock`))
-      .catch(error => console.log(error));
-    lastTransactionID++;
+    const items = record.items;
+    const theItems = items.map(i => {
+      return getItem(record, i);
+    });
+    theItems.forEach((item, index) => {
+      saveToDatabase(agent, 'Inventory', document, item)
+        .then(agent.add(`${record.items[index]} recorded in the stock`))
+        .catch(error => console.log(error));
+      lastTransactionID++;
+    });
   };
 
   const showCash = async (agent) => {
@@ -200,8 +205,8 @@ const getCollection = async (collection) => {
   return results;
 };
 
-const getItem = (record) => {
-  const array = record.item.split(' ');
+const getItem = (record, item) => {
+  const array = item.split(' ');
   return {
     number: parseInt(array[0]),
     item: validateItem(array[1]),

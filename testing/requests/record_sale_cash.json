@@ -1,10 +1,10 @@
 {
   "queryResult": {
-    "queryText": "Today, I sold 2 oranges for 400 USD",
+    "queryText": "Today, I sold 2 oranges and 2 apples for 400 USD",
     "parameters": {
       "date": "2019-11-17T12:00:00+04:00",
       "action": "sale",
-      "item": "2 oranges",
+      "items": ["2 oranges","2 apples"],
       "amount": {
         "currency": "USD",
         "amount": 400
