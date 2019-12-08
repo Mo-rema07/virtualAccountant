@@ -145,6 +145,35 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     agent.add(list);
   };
 
+  const checkProfit = async (agent) => {
+    const transactions = await getCollection('Transactions');
+
+    const debitSales = transactions.filter(t => { return t.dr_account === 'Sales'; });
+    const creditSales = transactions.filter(t => { return t.cr_account === 'Sales'; });
+
+    const debitPurchases = transactions.filter(t => { return t.dr_account === 'Purchases'; });
+    const creditPurchases = transactions.filter(t => { return t.cr_account === 'Purchases'; });
+
+    const drSalesTotal = debitSales.length > 0
+      ? debitSales.map(t => { return t.amount.amount; })
+        .reduce((a, b) => { return a + b; }) : 0;
+    const crSalesTotal = creditSales.length > 0
+      ? creditSales.map(t => {return t.amount.amount;})
+        .reduce((a, b) => { return a + b; }) : 0;
+
+    const drPurchasesTotal = debitPurchases.length > 0
+      ? debitPurchases.map(t => {return t.amount.amount;})
+        .reduce((a, b) => { return a + b; }) : 0;
+    const crPurchasesTotal = creditPurchases.length > 0
+      ? creditPurchases.map(t => { return t.amount.amount; })
+        .reduce((a, b) => { return a + b; }) : 0;
+
+    let salesBal = crSalesTotal - drSalesTotal;
+    let purchasesBal = drPurchasesTotal - crPurchasesTotal;
+
+    agent.add(`${salesBal - purchasesBal} Maloti`);
+  }
+
   // Map from Dialogflow intent names to functions to be run when the intent is matched
   const intentMap = new Map();
   // intentMap.set('ReadFromFirestore', readFromDb);
@@ -154,6 +183,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
   intentMap.set('ListTransactions', listTransactions);
   intentMap.set('ListDebtors', listDebtors);
   intentMap.set('ListCreditors', listCreditors);
+  intentMap.set('CheckProfit', checkProfit);
   agent.handleRequest(intentMap);
 });
 

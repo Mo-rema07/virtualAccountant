@@ -1,0 +1,10 @@
+{
+  "queryResult": {
+    "queryText": "Profit",
+    "allRequiredParamsPresent": true,
+    "intent": {
+      "displayName": "CheckProfit"
+    },
+    "languageCode": "en"
+  }
+}

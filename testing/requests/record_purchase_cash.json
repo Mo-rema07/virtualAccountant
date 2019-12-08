@@ -1,12 +1,12 @@
 {
   "queryResult": {
-    "queryText": "Yesterday, I bought 3 apples for 600 USD",
+    "queryText": "Yesterday, I bought 3 apples for 600 Maloti",
     "parameters": {
       "date": "2019-11-16T12:00:00+04:00",
       "action": "purchase",
       "items": ["3 apples"],
       "amount": {
-        "currency": "USD",
+        "currency": "LSL",
         "amount": 600
       }
     },
