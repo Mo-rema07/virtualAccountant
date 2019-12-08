@@ -119,7 +119,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     debt.forEach((value, key, map) => {
       list = list.concat(`${key}: ${value} Maloti`);
     });
-    agent.add(list);
+    list ? agent.add(list) : agent.add(`No Debtors`);
   };
 
   const listCreditors = async (agent) => {
@@ -142,7 +142,8 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, resp
     credit.forEach((value, key, map) => {
       list = list.concat(`${key}: ${value} Maloti \n`);
     });
-    agent.add(list);
+    list ? agent.add(list) : agent.add(`No Creditors`);
+
   };
 
   const checkProfit = async (agent) => {
